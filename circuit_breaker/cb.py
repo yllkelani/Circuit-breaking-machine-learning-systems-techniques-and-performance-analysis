@@ -6,22 +6,30 @@ class cb:
     def __init__(self):
         self.alert = 0
 
-    #KMeans
-    def train_cluster(self, X):
-        self.kmeans = KMeans(n_clusters=2, random_state=0)
-        self.kmeans.fit(X)
-        label_0 = (len([label for label in self.kmeans.labels_ if not label ]))
-        label_1 = (len([label for label in self.kmeans.labels_ if label ]))
-        self.abnormal_label = 0 if sum(self.kmeans.labels_) <= (len(X) / 2) else 1
-        return (label_0, label_1)
+    # kNN
+    def tune_knn(self, X, k = 3, noise_prop = 0.05):
+        nbrs = NearestNeighbors(n_neighbors=k).fit(X)
+        distances, indices = nbrs.kneighbors(X)
+        avg_distances = np.mean(distances, axis=1)
+        sorted_avg = sorted(enumerate(avg_distances), key=lambda x:x[1])
+        percentile = round(len(X) * (1 - noise_prop))
+        self.knn_thres = sorted_avg[percentile][1]
+        norm_indices = [x[0] for x in sorted_avg[:percentile]]
+        abnorm_indices = [x[0] for x in sorted_avg[percentile:]]
+        return norm_indices, abnorm_indices
 
-    def test_cluster(self, x):
-        predicted_label = self.kmeans.predict(x)
-        if predicted_label == self.abnormal_label:
+    def train_knn(self, X, k = 3, tune=False):
+        self.nbrs = NearestNeighbors(n_neighbors=k).fit(X)
+
+    def test_knn(self, x):
+        distances, indices = self.nbrs.kneighbors(x.values.reshape([1, -1]))
+        avg_dis = np.mean(distances)
+
+        if avg_dis > self.knn_thres:
             self.alert = 1
 
-        return predicted_label
-
+        return avg_dis
+        
     # DBSCAN
     def tune_dbscan(self, X, noise_prop = 0.05):
         check_max = np.max((X.max()).values)
@@ -57,30 +65,6 @@ class cb:
             self.alert = 1
 
         return dbs_labels[-1]
-
-    # kNN
-    def tune_knn(self, X, k = 3, noise_prop = 0.05):
-        nbrs = NearestNeighbors(n_neighbors=k).fit(X)
-        distances, indices = nbrs.kneighbors(X)
-        avg_distances = np.mean(distances, axis=1)
-        sorted_avg = sorted(enumerate(avg_distances), key=lambda x:x[1])
-        percentile = round(len(X) * (1 - noise_prop))
-        self.knn_thres = sorted_avg[percentile][1]
-        norm_indices = [x[0] for x in sorted_avg[:percentile]]
-        abnorm_indices = [x[0] for x in sorted_avg[percentile:]]
-        return norm_indices, abnorm_indices
-
-    def train_knn(self, X, k = 3, tune=False):
-        self.nbrs = NearestNeighbors(n_neighbors=k).fit(X)
-
-    def test_knn(self, x):
-        distances, indices = self.nbrs.kneighbors(x.values.reshape([1, -1]))
-        avg_dis = np.mean(distances)
-
-        if avg_dis > self.knn_thres:
-            self.alert = 1
-
-        return avg_dis
 
     # Neural Network
     def tune_nn(self, X, y):
